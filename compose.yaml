@@ -1,0 +1,157 @@
+# One Instance. A second Instance is another Compose project name and another env file.
+# Published host ports and the Advertised WebSocket URL come from that env file.
+
+services:
+  speech:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.0
+    restart: unless-stopped
+    ports:
+      - "${SPEECH_PORT:-8880}:8880"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8880/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  voice-server:
+    image: ${VOICE_SERVER_IMAGE:-ghcr.io/beeman/switchboard-voice-server:0.9.8}
+    restart: unless-stopped
+    security_opt:
+      - seccomp:unconfined
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: ${TZ:-UTC}
+      SWITCHBOARD_CONSOLE: ${SWITCHBOARD_CONSOLE:-0}
+      WEBSOCKET_URL: ${WEBSOCKET_URL:?Set WEBSOCKET_URL to the Advertised WebSocket URL}
+      VISION_URL: ${VISION_URL:?Set VISION_URL to the vision URL clients can reach}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3}
+      SPEECH_URL: ${SPEECH_URL:-http://speech:8880/v1/audio/speech}
+      MANAGER_URL: ${MANAGER_URL:-http://console:8002/xiaozhi}
+    command: ["python", "/switchboard/render_config.py"]
+    ports:
+      - "${VOICE_WS_PORT:-8000}:8000"
+      - "${VOICE_HTTP_PORT:-8003}:8003"
+    volumes:
+      - voice-data:/opt/xiaozhi-esp32-server/data
+      - ${MODELS_DIR:-./models}/SenseVoiceSmall/model.pt:/opt/xiaozhi-esp32-server/models/SenseVoiceSmall/model.pt:ro
+      - ./config/instance.yaml.template:/switchboard/instance.yaml.template:ro
+      - ./config/instance-console.yaml.template:/switchboard/instance-console.yaml.template:ro
+      - ./scripts/render_config.py:/switchboard/render_config.py:ro
+      - ./prompt/agent-base-prompt.txt:/opt/xiaozhi-esp32-server/agent-base-prompt.txt:ro
+      - console-runtime:/switchboard-console:ro
+    depends_on:
+      speech:
+        condition: service_healthy
+      console-seed:
+        condition: service_completed_successfully
+        required: false
+
+  client:
+    image: ${CLIENT_IMAGE:-ghcr.io/beeman/switchboard-client:0.1.0}
+    build: ./client
+    restart: unless-stopped
+    environment:
+      OTA_URL: ${OTA_URL:?Set OTA_URL to the OTA URL this browser can reach}
+    ports:
+      - "${CLIENT_PORT:-8006}:80"
+
+  # The console is opt-in: docker compose --profile console up
+  # SWITCHBOARD_CONSOLE=1 makes the voice server read module settings from it.
+  console-db:
+    image: mysql:8.4
+    profiles: ["console"]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-switchboard}
+      MYSQL_DATABASE: xiaozhi_esp32_server
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - console-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  console-redis:
+    image: redis:8.0
+    profiles: ["console"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  console:
+    image: ${CONSOLE_IMAGE:-ghcr.io/beeman/switchboard-console:0.9.8}
+    profiles: ["console"]
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      SPRING_DATASOURCE_DRUID_URL: jdbc:mysql://console-db:3306/xiaozhi_esp32_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC&nullCatalogMeansCurrent=true&connectTimeout=30000&socketTimeout=30000&autoReconnect=true&failOverReadOnly=false&maxReconnects=10
+      SPRING_DATASOURCE_DRUID_USERNAME: root
+      SPRING_DATASOURCE_DRUID_PASSWORD: ${MYSQL_ROOT_PASSWORD:-switchboard}
+      SPRING_DATA_REDIS_HOST: console-redis
+      SPRING_DATA_REDIS_PASSWORD: ""
+      SPRING_DATA_REDIS_PORT: "6379"
+    ports:
+      - "${CONSOLE_PORT:-8002}:8002"
+    volumes:
+      - console-upload:/uploadfile
+    depends_on:
+      console-db:
+        condition: service_healthy
+      console-redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "exec 3<>/dev/tcp/127.0.0.1/8002 && printf 'GET /xiaozhi/user/pub-config HTTP/1.0\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'HTTP/1.1 200' <&3",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+
+  console-seed:
+    image: mysql:8.4
+    profiles: ["console"]
+    user: "0:0"
+    restart: "no"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-switchboard}
+      WEBSOCKET_URL: ${WEBSOCKET_URL:?Set WEBSOCKET_URL to the Advertised WebSocket URL}
+      OTA_URL: ${OTA_URL:?Set OTA_URL to the OTA URL this browser can reach}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3}
+      SPEECH_URL: ${SPEECH_URL:-http://speech:8880/v1/audio/speech}
+    volumes:
+      - ./scripts/seed-console.sh:/seed-console.sh:ro
+      - console-runtime:/switchboard-console
+    entrypoint: ["/bin/bash", "/seed-console.sh"]
+    depends_on:
+      console:
+        condition: service_healthy
+
+volumes:
+  voice-data:
+  console-db-data:
+  console-upload:
+  console-runtime:
