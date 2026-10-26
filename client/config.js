@@ -1,0 +1,1 @@
+window.SWITCHBOARD = { otaUrl: "" };

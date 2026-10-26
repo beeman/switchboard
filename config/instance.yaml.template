@@ -1,0 +1,65 @@
+# Rendered into data/.config.yaml when the Instance starts.
+# Hostnames come from the Instance env file. This template has none.
+
+server:
+  websocket: "${WEBSOCKET_URL}"
+  vision_explain: "${VISION_URL}"
+  auth:
+    enabled: false
+
+read_config_from_api: false
+enable_wakeup_words_response_cache: false
+tts_timeout: 60
+
+prompt: |
+  You are a concise voice assistant. Speak in short spoken English.
+
+system_error_response: "Something went wrong. Please try again in a moment."
+
+end_prompt:
+  enable: true
+  prompt: |
+    End the conversation with one short, warm goodbye.
+
+selected_module:
+  VAD: SileroVAD
+  ASR: FunASR
+  LLM: OllamaLLM
+  TTS: CustomTTS
+  Memory: mem_local_short
+  Intent: nointent
+
+ASR:
+  FunASR:
+    type: fun_local
+    model_dir: models/SenseVoiceSmall
+    output_dir: tmp/
+    language: en
+
+LLM:
+  OllamaLLM:
+    type: ollama
+    model_name: "${OLLAMA_MODEL}"
+    base_url: "${OLLAMA_BASE_URL}"
+
+TTS:
+  CustomTTS:
+    type: custom
+    method: POST
+    url: "${SPEECH_URL}"
+    params:
+      model: kokoro
+      input: "{prompt_text}"
+      response_format: mp3
+      voice: af_heart
+      lang_code: "a"
+      return_download_link: false
+      speed: 1
+      stream: false
+    format: mp3
+    output_dir: tmp/
+    language: English
+
+Memory:
+  mem_local_short:
+    llm: ""

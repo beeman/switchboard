@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Switchboard</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { margin: 0; }
+    main { max-width: 40rem; margin: 0 auto; padding: 1.25rem; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.25rem; }
+    p { margin: 0.25rem 0 1rem; }
+    #status { color: #555; }
+    #log { list-style: none; padding: 0; margin: 0 0 1rem; min-height: 12rem; }
+    #log li { padding: 0.4rem 0; border-bottom: 1px solid #ddd; }
+    #log .you { font-weight: 600; }
+    form, .row { display: flex; gap: 0.5rem; }
+    input { flex: 1; font: inherit; padding: 0.5rem; }
+    button { font: inherit; padding: 0.5rem 0.8rem; }
+    #talk { min-width: 8rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Switchboard</h1>
+    <p id="status">Not connected.</p>
+    <ul id="log"></ul>
+    <div class="row">
+      <button id="connect" type="button">Connect</button>
+      <button id="talk" type="button" disabled>Hold to talk</button>
+    </div>
+    <form id="say">
+      <input id="text" type="text" placeholder="Type a message" autocomplete="off" disabled>
+      <button type="submit" disabled>Send</button>
+    </form>
+  </main>
+  <script src="libopus.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

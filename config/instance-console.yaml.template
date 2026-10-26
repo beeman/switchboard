@@ -1,0 +1,15 @@
+# Rendered into data/.config.yaml when the console profile is on.
+# Module settings live in the console database. This file only points the
+# voice server at that console. Hostnames come from the Instance env.
+
+server:
+  ip: 0.0.0.0
+  port: 8000
+  http_port: 8003
+  vision_explain: "${VISION_URL}"
+
+manager-api:
+  url: "${MANAGER_URL}"
+  secret: "${MANAGER_SECRET}"
+
+prompt_template: agent-base-prompt.txt

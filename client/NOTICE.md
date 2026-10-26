@@ -1,0 +1,1 @@
+`libopus.js` is the Opus codec compiled with Emscripten. It is the same file the upstream test page uses to send and play Xiaozhi audio frames. Opus is BSD licensed. The test page that shipped this build is MIT licensed, Copyright (c) 2025 xinnan-tech.

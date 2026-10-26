@@ -1,0 +1,3 @@
+# The console is opt-in and owns module settings
+
+An Instance can start from a rendered config file, or with the console profile. The console is upstream's manager web and API, built from the same `v0.9.8` pin as the voice server, plus MySQL and Redis. It is not vendored. Turning it on is a one-way move for that Instance's devices: the voice server then loads Ollama, Speech, and the prompt from the console database, and a Device has to be bound before it can talk. Leaving the profile off keeps the rendered file, so a second Instance does not have to run MySQL. Upstream enables device token auth in that database. This repo turns that flag off in the seed, because an Instance still has no device auth and is meant for a trusted network.
